@@ -179,8 +179,70 @@
 
     .success { display: none; margin-top: 16px; padding: 16px; border-radius: 10px; background: var(--fg); color: #fff; }
 
-    /* Reveal on scroll */
-    .reveal { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .6s ease; }
+    /* Visual boost */
+    .title {
+      font-size: clamp(1.9rem, 3.5vw, 2.8rem);
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      background: linear-gradient(135deg, #12324c 0%, #0f3c5e 48%, var(--accent) 92%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 10px 30px rgba(25,55,82,0.18);
+    }
+
+    .header-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+      pointer-events: none;
+      opacity: 0.22;
+    }
+
+    .card, .kv {
+      will-change: transform, box-shadow;
+      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    }
+    .card:hover, .kv:hover {
+      box-shadow: 0 14px 40px rgba(25,55,82,0.12);
+      border-color: rgba(0,0,0,0.06);
+    }
+
+    .cta .cta-btn {
+      background: linear-gradient(135deg, var(--fg) 0%, #0f3c5e 100%);
+      border-color: transparent;
+      box-shadow: 0 10px 30px rgba(25,55,82,0.22), inset 0 0 0 0 rgba(245,162,25,0.0);
+    }
+    .cta .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 38px rgba(25,55,82,0.28), inset 0 0 0 2px var(--accent);
+    }
+
+    /* Mobile sticky CTA */
+    .mobile-sticky-cta {
+      display: none;
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 1002;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, rgba(250,250,250,0.3) 0%, rgba(250,250,250,0.86) 60%, rgba(250,250,250,0.98) 100%);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid rgba(25,55,82,0.08);
+    }
+    .mobile-sticky-cta .cta-btn {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    /* Reveal on scroll - progressive enhancement
+       ברירת מחדל: נראה. אם JS פעיל נוסיף body.anim כדי לקבל אפקטי כניסה */
+    .reveal { opacity: 1; transform: none; transition: opacity .5s ease, transform .6s ease; }
+    body.anim .reveal { opacity: 0; transform: translateY(16px); }
     .reveal-visible { opacity: 1; transform: translateY(0); }
 
     /* Modal */
@@ -190,10 +252,18 @@
     }
     .modal {
       position: fixed; z-index: 1001; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: #fff; border-radius: 16px; padding: 28px; width: 92%; max-width: 520px;
+      background: #fff; border-radius: 16px; padding: 24px; width: 92%; max-width: 680px;
       border: 1px solid var(--line);
+      max-height: 92vh; overflow: hidden; display: flex; flex-direction: column;
     }
     .modal h3 { text-align: center; font-weight: 700; margin-bottom: 16px; }
+    .steps-indicator { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; align-items: center; margin: 6px 0 14px 0; }
+    .steps-indicator .dot { height: 6px; border-radius: 999px; background: rgba(25,55,82,0.15); }
+    .steps-indicator .dot.active { background: var(--accent); }
+    .step { display: none; }
+    .step.active { display: block; }
+    .step-title { font-weight: 700; margin-bottom: 8px; color: var(--fg); }
+    .modal form { overflow: auto; padding-right: 2px; }
     .form-group { margin: 14px 0; }
     label { display: block; margin-bottom: 6px; font-weight: 500; color: var(--fg); }
     input, textarea, select {
@@ -218,12 +288,14 @@
       .modal { padding: 20px; width: 94%; }
       .modal-actions { flex-direction: column; }
       .btn { width: 100%; }
+      .mobile-sticky-cta { display: block; }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header class="header">
+      <canvas id="sketchCanvas" class="header-canvas" aria-hidden="true"></canvas>
       <img id="brandLogo" class="brand-logo" alt="לוגו" src="https://res.cloudinary.com/dsoh3yteb/image/upload/v1723558434/NewLogo_BLANK-Recovered_x4kgew.png" />
       <span id="eyebrowText" class="eyebrow">הצעת מחיר</span>
       <h1 id="pageTitle" class="title">סדנת AI ואוטומציה לצוות Balena</h1>
@@ -362,7 +434,14 @@
     <div class="modal">
       <button class="close-x" onclick="closeApprovalModal()" aria-label="סגירה">&times;</button>
       <h3 id="approverTitleText">פרטי המאשר</h3>
+      <div class="steps-indicator" aria-hidden="true">
+        <div class="dot" data-step-dot="1"></div>
+        <div class="dot" data-step-dot="2"></div>
+        <div class="dot" data-step-dot="3"></div>
+      </div>
       <form id="approvalForm">
+        <div class="step step-1 active">
+          <div class="step-title">פרטים אישיים</div>
         <div class="form-group">
           <label id="labelName" for="approverName">שם מלא *</label>
           <input id="approverName" name="approverName" type="text" required />
@@ -379,6 +458,26 @@
           <label id="labelPhone" for="approverPhone">טלפון</label>
           <input id="approverPhone" name="approverPhone" type="tel" />
         </div>
+        </div>
+
+        <div class="step step-2">
+          <div class="step-title">בחירת מסלול</div>
+          <div class="form-group">
+            <label id="labelSessions">מספר מפגשים *</label>
+            <div class="pill-list" style="gap:12px;">
+              <label class="pill" style="cursor:pointer">
+                <input type="radio" name="sessionsChoice" value="2" required style="margin-left:6px" /> 2 מפגשים
+              </label>
+              <label class="pill" style="cursor:pointer">
+                <input type="radio" name="sessionsChoice" value="3" required style="margin-left:6px" /> 3 מפגשים
+              </label>
+            </div>
+            <div id="modalPrice" class="muted" style="margin-top:8px;"></div>
+          </div>
+        </div>
+
+        <div class="step step-3">
+          <div class="step-title">פרטים ארגוניים</div>
         <div class="form-group">
           <label id="labelDept" for="organizationDepartment">מחלקה/אגף</label>
           <input id="organizationDepartment" name="organizationDepartment" type="text" />
@@ -387,13 +486,22 @@
           <label id="labelNotes" for="notes">הערות נוספות</label>
           <textarea id="notes" name="notes" placeholder="הערות, שאלות או בקשות מיוחדות..."></textarea>
         </div>
+        </div>
+
         <div class="modal-actions">
+          <button type="button" id="btnBack" class="btn ghost" style="display:none">הקודם</button>
+          <button type="button" id="btnNext" class="btn primary">הבא</button>
           <button type="button" id="btnCancel" class="btn ghost" onclick="closeApprovalModal()">ביטול</button>
-          <button type="submit" id="btnSubmit" class="btn primary">אישור סופי</button>
+          <button type="submit" id="btnSubmit" class="btn primary" style="display:none">אישור סופי</button>
         </div>
       </form>
     </div>
   </div>
+
+  <!-- External libraries -->
+  <script src="https://unpkg.com/gsap@3/dist/gsap.min.js"></script>
+  <script src="https://unpkg.com/gsap@3/dist/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/roughjs/bundled/rough.js"></script>
 
   <script>
     // Date
@@ -413,6 +521,7 @@
       });
     }, { threshold: 0.12 });
     window.addEventListener('load', () => {
+      document.body.classList.add('anim');
       document.querySelectorAll('.reveal').forEach(el => io.observe(el));
     });
 
@@ -425,6 +534,8 @@
       document.getElementById('approvalModal').style.display = 'none';
       document.body.style.overflow = 'auto';
       document.getElementById('approvalForm').reset();
+      // reset steps
+      currentStep = 1; updateStepsUI();
     }
     document.getElementById('approvalModal').addEventListener('click', (e) => {
       if (e.target.id === 'approvalModal') closeApprovalModal();
@@ -461,6 +572,9 @@
         document.getElementById('sessionsText').textContent = sText;
         const total = sessions === '2' ? '12,000 ₪ + מע"מ' : '18,000 ₪ + מע"מ';
         document.getElementById('selectedTotal').textContent = `נבחר: ${sText} — סך הכל: ${total}`;
+        // Preselect radio in modal
+        const radio = document.querySelector(`input[name="sessionsChoice"][value="${sessions}"]`);
+        if (radio) { radio.checked = true; updateModalPrice(); }
       }
 
       // Prefill form
@@ -485,6 +599,10 @@
         document.getElementById('optionsLabel').textContent = 'Options:';
         document.getElementById('opt2').textContent = '2 sessions: 12,000 ₪ + VAT';
         document.getElementById('opt3').textContent = '3 sessions: 18,000 ₪ + VAT';
+        const sLabel = document.getElementById('labelSessions');
+        if (sLabel) sLabel.textContent = 'Number of sessions *';
+        const modalPrice = document.getElementById('modalPrice');
+        if (modalPrice) modalPrice.textContent = '';
         document.getElementById('approverTitleText').textContent = 'Approver Details';
         document.getElementById('labelName').textContent = 'Full name *';
         document.getElementById('labelRole').textContent = 'Role *';
@@ -496,6 +614,15 @@
         document.getElementById('btnSubmit').textContent = 'Confirm';
         document.getElementById('successMessage').textContent = 'Quote approved. We will contact you soon.';
       }
+    }
+
+    function updateModalPrice() {
+      const choice = document.querySelector('input[name="sessionsChoice"]:checked');
+      const modalPrice = document.getElementById('modalPrice');
+      if (!choice || !modalPrice) return;
+      const perSession = document.getElementById('perSessionPrice')?.textContent || '6,000 ₪ + מע"מ';
+      const val = choice.value === '2' ? '12,000 ₪ + מע"מ' : '18,000 ₪ + מע"מ';
+      modalPrice.textContent = `עלות כוללת: ${val} (עלות למפגש: ${perSession})`;
     }
 
     // Submit
@@ -512,10 +639,13 @@
 
       const p = new URLSearchParams(location.search);
       const org = document.getElementById('orgName').textContent;
-      const sessions = p.get('sessions') || '2 או 3';
+      // Prefer modal radio choice, fallback to URL param or default text
+      const selectedRadio = document.querySelector('input[name="sessionsChoice"]:checked');
+      const sessions = selectedRadio?.value || p.get('sessions') || '2 או 3';
 
       try {
-        const res = await fetch('https://hook.eu2.make.com/6qwapfnavfh2464dbm545tbse7o52yct', {
+        const hook = p.get('hook') || 'https://hook.eu2.make.com/6qwapfnavfh2464dbm545tbse7o52yct';
+        const res = await fetch(hook, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -535,6 +665,8 @@
         const msg = document.getElementById('successMessage');
         msg.style.display = 'block';
         document.getElementById('ctaButton').style.display = 'none';
+        const sticky = document.querySelector('.mobile-sticky-cta');
+        if (sticky) sticky.style.display = 'none';
         msg.scrollIntoView({ behavior: 'smooth' });
       } catch (err) {
         submitBtn.textContent = 'שגיאה - נסה שוב';
@@ -542,8 +674,179 @@
       }
     });
 
+    // Modal interactive bindings
+    window.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t && t.name === 'sessionsChoice') {
+        updateModalPrice();
+      }
+    });
+
     // Init
-    window.addEventListener('load', () => { setCurrentDate(); applyParams(); });
+    function initGSAPAnimations() {
+      if (!window.gsap) return;
+      if (window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
+
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      tl.from('.brand-logo', { opacity: 0, y: -20, duration: 0.6 })
+        .from('.eyebrow', { opacity: 0, y: 10, duration: 0.5 }, '-=0.2')
+        .from('.title', { opacity: 0, y: 12, duration: 0.7 }, '-=0.2')
+        .from('.header .meta', { opacity: 0, y: 8, duration: 0.4, stagger: 0.12 }, '-=0.3');
+
+      gsap.utils.toArray('section').forEach((section) => {
+        gsap.from(section, {
+          opacity: 0,
+          y: 28,
+          duration: 0.8,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: section,
+            start: 'top 80%',
+            once: true,
+          }
+        });
+      });
+    }
+
+    function initRoughSketch() {
+      if (!window.rough) return;
+      const header = document.querySelector('.header');
+      const canvas = document.getElementById('sketchCanvas');
+      if (!header || !canvas) return;
+
+      const draw = () => {
+        const rect = header.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+
+        const rc = rough.canvas(canvas);
+        // Soft scribbles background
+        rc.circle(rect.width * 0.85, rect.height * 0.2, 220, {
+          fill: 'rgba(245,162,25,0.12)', fillStyle: 'solid', stroke: 'rgba(245,162,25,0.36)', roughness: 2.6
+        });
+        rc.circle(rect.width * 0.15, rect.height * 0.65, 260, {
+          fill: 'rgba(0,184,169,0.10)', fillStyle: 'solid', stroke: 'rgba(0,184,169,0.32)', roughness: 2.2
+        });
+        rc.curve([[rect.width*0.1, rect.height*0.85],[rect.width*0.35, rect.height*0.7],[rect.width*0.65, rect.height*0.9],[rect.width*0.92, rect.height*0.75]], {
+          stroke: 'rgba(25,55,82,0.22)', strokeWidth: 1.5, roughness: 1.5
+        });
+      };
+
+      draw();
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(draw, 120);
+      });
+    }
+
+    function initTiltCards() {
+      if (!window.gsap) return;
+      const tiltElements = document.querySelectorAll('.card, .kv');
+      tiltElements.forEach((el) => {
+        const bounds = () => el.getBoundingClientRect();
+        el.addEventListener('mousemove', (e) => {
+          const b = bounds();
+          const relX = (e.clientX - b.left) / b.width - 0.5;
+          const relY = (e.clientY - b.top) / b.height - 0.5;
+          gsap.to(el, { rotateY: relX * 10, rotateX: -relY * 10, transformPerspective: 800, transformOrigin: 'center', duration: 0.2 });
+        });
+        el.addEventListener('mouseleave', () => {
+          gsap.to(el, { rotateY: 0, rotateX: 0, duration: 0.3, ease: 'power2.out' });
+        });
+      });
+    }
+
+    function initStickyCTA() {
+      const sticky = document.querySelector('.mobile-sticky-cta');
+      if (!sticky) return;
+      const update = () => {
+        if (window.innerWidth <= 768) {
+          sticky.style.display = 'block';
+        } else {
+          sticky.style.display = 'none';
+        }
+      };
+      update();
+      window.addEventListener('resize', update);
+    }
+
+    // Multi-step modal state
+    let currentStep = 1;
+    function updateStepsUI() {
+      const total = 3;
+      document.querySelectorAll('.step').forEach((s) => s.classList.remove('active'));
+      const active = document.querySelector(`.step.step-${currentStep}`);
+      if (active) active.classList.add('active');
+      // dots
+      document.querySelectorAll('[data-step-dot]').forEach((d) => {
+        const idx = Number(d.getAttribute('data-step-dot'));
+        d.classList.toggle('active', idx <= currentStep);
+      });
+      // buttons
+      const btnBack = document.getElementById('btnBack');
+      const btnNext = document.getElementById('btnNext');
+      const btnSubmit = document.getElementById('btnSubmit');
+      if (btnBack) btnBack.style.display = currentStep > 1 ? 'inline-block' : 'none';
+      if (btnNext) btnNext.style.display = currentStep < total ? 'inline-block' : 'none';
+      if (btnSubmit) btnSubmit.style.display = currentStep === total ? 'inline-block' : 'none';
+    }
+
+    function validateStep(step) {
+      // basic HTML5 validity within active step
+      const stepEl = document.querySelector(`.step.step-${step}`);
+      if (!stepEl) return true;
+      const inputs = stepEl.querySelectorAll('input, textarea, select');
+      for (const input of inputs) {
+        if (!input.checkValidity()) {
+          input.reportValidity();
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function initModalSteps() {
+      const btnBack = document.getElementById('btnBack');
+      const btnNext = document.getElementById('btnNext');
+      if (btnBack) btnBack.addEventListener('click', () => { currentStep = Math.max(1, currentStep - 1); updateStepsUI(); });
+      if (btnNext) btnNext.addEventListener('click', () => {
+        if (!validateStep(currentStep)) return;
+        currentStep = Math.min(3, currentStep + 1); updateStepsUI();
+      });
+      updateStepsUI();
+    }
+
+    window.addEventListener('load', () => { setCurrentDate(); applyParams(); initGSAPAnimations(); initRoughSketch(); initTiltCards(); initStickyCTA(); initModalSteps(); });
   </script>
+
+  <!-- Rough Notation highlights -->
+  <script type="module">
+    import { annotate, annotationGroup } from 'https://unpkg.com/rough-notation?module';
+    window.addEventListener('load', () => {
+      const title = document.querySelector('.title');
+      const eyebrow = document.querySelector('.eyebrow');
+      const sectionHeaders = document.querySelectorAll('h2');
+
+      const annotations = [];
+      if (eyebrow) annotations.push(annotate(eyebrow, { type: 'highlight', color: 'rgba(0,184,169,0.18)', multiline: true, padding: 3 }));
+      if (title) annotations.push(annotate(title, { type: 'underline', color: '#F5A219', strokeWidth: 2, animationDuration: 1200 }));
+      sectionHeaders.forEach(h => annotations.push(annotate(h, { type: 'box', color: 'rgba(245,162,25,0.35)', padding: 6, strokeWidth: 1.5 })));
+
+      const group = annotationGroup(annotations);
+      setTimeout(() => group.show(), 450);
+    });
+  </script>
+
+  <!-- Mobile Sticky CTA -->
+  <div class="mobile-sticky-cta" role="button" aria-label="אישור ההצעה" onclick="openApprovalModal()">
+    <button class="cta-btn">אישור ההצעה</button>
+  </div>
 </body>
 </html>
